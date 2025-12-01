@@ -11,6 +11,7 @@
 #include <QColor>
 #include <QApplication>
 #include <QScrollBar>
+#include <QEvent>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -36,7 +37,13 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->treeWidgetFolder1->setColumnWidth(3, 100);
     ui->treeWidgetFolder1->setAlternatingRowColors(true);
     ui->treeWidgetFolder1->setRootIsDecorated(true);
+    ui->treeWidgetFolder1->installEventFilter(this);
+    connect(ui->treeWidgetFolder1, SIGNAL(itemSelectionChanged()), this, SLOT(onFolder1SelectionChanged()));
     connect(ui->treeWidgetFolder1, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
+    connect(ui->treeWidgetFolder1, SIGNAL(itemClicked(QTreeWidgetItem*, int)), this, SLOT(onFolder1FocusChanged()));
+    connect(ui->treeWidgetFolder1, SIGNAL(itemActivated(QTreeWidgetItem*, int)), this, SLOT(onFolder1FocusChanged()));
+    connect(ui->treeWidgetFolder1, SIGNAL(itemPressed(QTreeWidgetItem*, int)), this, SLOT(onFolder1FocusChanged()));
+    connect(ui->treeWidgetFolder1, SIGNAL(itemChanged(QTreeWidgetItem*, int)), this, SLOT(onFolder1FocusChanged()));
     connect(ui->treeWidgetFolder1->verticalScrollBar(), SIGNAL(valueChanged(int)), 
             this, SLOT(onFolder1ScrollChanged(int)));
     
@@ -50,7 +57,13 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->treeWidgetFolder2->setColumnWidth(3, 100);
     ui->treeWidgetFolder2->setAlternatingRowColors(true);
     ui->treeWidgetFolder2->setRootIsDecorated(true);
+    ui->treeWidgetFolder2->installEventFilter(this);
+    connect(ui->treeWidgetFolder2, SIGNAL(itemSelectionChanged()), this, SLOT(onFolder2SelectionChanged()));
     connect(ui->treeWidgetFolder2, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
+    connect(ui->treeWidgetFolder2, SIGNAL(itemClicked(QTreeWidgetItem*, int)), this, SLOT(onFolder2FocusChanged()));
+    connect(ui->treeWidgetFolder2, SIGNAL(itemActivated(QTreeWidgetItem*, int)), this, SLOT(onFolder2FocusChanged()));
+    connect(ui->treeWidgetFolder2, SIGNAL(itemPressed(QTreeWidgetItem*, int)), this, SLOT(onFolder2FocusChanged()));
+    connect(ui->treeWidgetFolder2, SIGNAL(itemChanged(QTreeWidgetItem*, int)), this, SLOT(onFolder2FocusChanged()));
     connect(ui->treeWidgetFolder2->verticalScrollBar(), SIGNAL(valueChanged(int)), 
             this, SLOT(onFolder2ScrollChanged(int)));
     
@@ -58,6 +71,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->splitter->setStretchFactor(1, 1);
     
     syncingScroll = false;
+    syncingSelection = false;
+    activeTreeWidget = ui->treeWidgetFolder1;
     
     applyStyles();
     
@@ -239,6 +254,20 @@ void MainWindow::applyStyles()
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (event->type() == QEvent::FocusIn) {
+        if (obj == ui->treeWidgetFolder1) {
+            activeTreeWidget = ui->treeWidgetFolder1;
+            updateButtonStates();
+        } else if (obj == ui->treeWidgetFolder2) {
+            activeTreeWidget = ui->treeWidgetFolder2;
+            updateButtonStates();
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::onBrowseFolder1()
@@ -596,13 +625,68 @@ void MainWindow::onItemSelectionChanged()
 
 void MainWindow::updateButtonStates()
 {
-    bool hasSelection1 = !ui->treeWidgetFolder1->selectedItems().isEmpty();
-    bool hasSelection2 = !ui->treeWidgetFolder2->selectedItems().isEmpty();
+    bool hasSelection = !activeTreeWidget->selectedItems().isEmpty();
+    bool isFolder1Active = (activeTreeWidget == ui->treeWidgetFolder1);
     
-    ui->pushButtonCopyTo2->setEnabled(hasSelection1);
-    ui->pushButtonCopyTo1->setEnabled(hasSelection2);
-    ui->pushButtonMoveTo2->setEnabled(hasSelection1);
-    ui->pushButtonMoveTo1->setEnabled(hasSelection2);
+    ui->pushButtonCopyTo2->setEnabled(hasSelection && isFolder1Active);
+    ui->pushButtonCopyTo1->setEnabled(hasSelection && !isFolder1Active);
+    ui->pushButtonMoveTo2->setEnabled(hasSelection && isFolder1Active);
+    ui->pushButtonMoveTo1->setEnabled(hasSelection && !isFolder1Active);
+}
+
+void MainWindow::syncSelection(QTreeWidget* source, QTreeWidget* target)
+{
+    if (syncingSelection) {
+        return;
+    }
+    
+    syncingSelection = true;
+    
+    target->clearSelection();
+    
+    QList<QTreeWidgetItem*> selectedItems = source->selectedItems();
+    foreach (QTreeWidgetItem* sourceItem, selectedItems) {
+        QString relativePath = sourceItem->data(0, Qt::UserRole).toString();
+        
+        QTreeWidgetItemIterator it(target);
+        while (*it) {
+            QTreeWidgetItem* item = *it;
+            if (item->data(0, Qt::UserRole).toString() == relativePath) {
+                item->setSelected(true);
+                target->scrollToItem(item);
+                break;
+            }
+            ++it;
+        }
+    }
+    
+    syncingSelection = false;
+}
+
+void MainWindow::onFolder1SelectionChanged()
+{
+    if (!syncingSelection) {
+        syncSelection(ui->treeWidgetFolder1, ui->treeWidgetFolder2);
+    }
+}
+
+void MainWindow::onFolder2SelectionChanged()
+{
+    if (!syncingSelection) {
+        syncSelection(ui->treeWidgetFolder2, ui->treeWidgetFolder1);
+    }
+}
+
+void MainWindow::onFolder1FocusChanged()
+{
+    activeTreeWidget = ui->treeWidgetFolder1;
+    updateButtonStates();
+}
+
+void MainWindow::onFolder2FocusChanged()
+{
+    activeTreeWidget = ui->treeWidgetFolder2;
+    updateButtonStates();
 }
 
 void MainWindow::onFolder1ScrollChanged(int value)

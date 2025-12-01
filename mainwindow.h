@@ -27,6 +27,7 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
+    bool eventFilter(QObject *obj, QEvent *event);
 
 private slots:
     void onBrowseFolder1();
@@ -39,6 +40,10 @@ private slots:
     void onMoveToFolder1();
     void onFolder1ScrollChanged(int value);
     void onFolder2ScrollChanged(int value);
+    void onFolder1SelectionChanged();
+    void onFolder2SelectionChanged();
+    void onFolder1FocusChanged();
+    void onFolder2FocusChanged();
 
 private:
     void scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath = "", int *fileCount = 0);
@@ -62,6 +67,9 @@ private:
     QString folder1Path;
     QString folder2Path;
     bool syncingScroll;
+    bool syncingSelection;
+    QTreeWidget* activeTreeWidget;
+    void syncSelection(QTreeWidget* source, QTreeWidget* target);
 };
 
 #endif // MAINWINDOW_H
