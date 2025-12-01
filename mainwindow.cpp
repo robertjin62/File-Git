@@ -13,6 +13,20 @@
 #include <QScrollBar>
 #include <QEvent>
 #include <QComboBox>
+#include <QMenu>
+#include <QContextMenuEvent>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QClipboard>
+#include <QProcess>
+#include <QFileDialog>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QTextEdit>
+#include <QGroupBox>
+#include <QFrame>
+#include <QTextDocument>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -78,11 +92,23 @@ MainWindow::MainWindow(QWidget *parent) :
     activeTreeWidget = ui->treeWidgetFolder1;
     
     setupFilterComboBoxes();
+    setupContextMenus();
     
     connect(ui->lineEditFilter1, SIGNAL(textChanged(QString)), this, SLOT(onFilter1Changed()));
     connect(ui->lineEditFilter2, SIGNAL(textChanged(QString)), this, SLOT(onFilter2Changed()));
     connect(ui->comboBoxStatusFilter1, SIGNAL(currentIndexChanged(int)), this, SLOT(onStatusFilter1Changed()));
     connect(ui->comboBoxStatusFilter2, SIGNAL(currentIndexChanged(int)), this, SLOT(onStatusFilter2Changed()));
+    
+    connect(ui->treeWidgetFolder1, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int)), this, SLOT(onItemDoubleClicked(QTreeWidgetItem*, int)));
+    connect(ui->treeWidgetFolder2, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int)), this, SLOT(onItemDoubleClicked(QTreeWidgetItem*, int)));
+    
+    ui->treeWidgetFolder1->setContextMenuPolicy(Qt::CustomContextMenu);
+    ui->treeWidgetFolder2->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->treeWidgetFolder1, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(showContextMenu(const QPoint&)));
+    connect(ui->treeWidgetFolder2, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(showContextMenu(const QPoint&)));
+    
+    contextMenuItem = 0;
+    contextMenuTree = 0;
     
     applyStyles();
     
@@ -840,6 +866,346 @@ void MainWindow::onStatusFilter2Changed()
     QString textFilter = ui->lineEditFilter2->text();
     QString statusFilter = ui->comboBoxStatusFilter2->currentText();
     applyFilter(ui->treeWidgetFolder2, textFilter, statusFilter);
+}
+
+void MainWindow::setupContextMenus()
+{
+}
+
+void MainWindow::showContextMenu(const QPoint& pos)
+{
+    QTreeWidget* tree = qobject_cast<QTreeWidget*>(sender());
+    if (!tree) {
+        return;
+    }
+    
+    QTreeWidgetItem* item = tree->itemAt(pos);
+    if (!item) {
+        return;
+    }
+    
+    contextMenuItem = item;
+    contextMenuTree = tree;
+    
+    QMenu contextMenu(this);
+    
+    QAction* openAction = contextMenu.addAction("Open in Explorer");
+    QAction* propertiesAction = contextMenu.addAction("Properties");
+    contextMenu.addSeparator();
+    QAction* copyPathAction = contextMenu.addAction("Copy Full Path");
+    QAction* copyFileNameAction = contextMenu.addAction("Copy File Name");
+    
+    connect(openAction, SIGNAL(triggered()), this, SLOT(onOpenInExplorer()));
+    connect(propertiesAction, SIGNAL(triggered()), this, SLOT(onShowProperties()));
+    connect(copyPathAction, SIGNAL(triggered()), this, SLOT(onCopyPath()));
+    connect(copyFileNameAction, SIGNAL(triggered()), this, SLOT(onCopyFileName()));
+    
+    contextMenu.exec(tree->mapToGlobal(pos));
+}
+
+void MainWindow::onItemDoubleClicked(QTreeWidgetItem* item, int column)
+{
+    if (!item) {
+        return;
+    }
+    
+    QString relativePath = item->data(0, Qt::UserRole).toString();
+    int folderNumber = item->data(1, Qt::UserRole).toInt();
+    QString fullPath = getFullPath(relativePath, folderNumber);
+    
+    openInExplorer(fullPath, true);
+}
+
+void MainWindow::openInExplorer(const QString& filePath, bool selectItem)
+{
+    QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        QMessageBox::warning(this, "Error", "File or folder does not exist.");
+        return;
+    }
+    
+    QString pathToOpen = fileInfo.absoluteFilePath();
+    if (fileInfo.isFile()) {
+        pathToOpen = fileInfo.absolutePath();
+    }
+    
+#ifdef Q_OS_WIN
+    QStringList arguments;
+    if (selectItem && fileInfo.isFile()) {
+        arguments << "/select," << QDir::toNativeSeparators(fileInfo.absoluteFilePath());
+    } else {
+        arguments << QDir::toNativeSeparators(pathToOpen);
+    }
+    QProcess::startDetached("explorer.exe", arguments);
+#elif defined(Q_OS_MAC)
+    QStringList arguments;
+    arguments << "-e";
+    if (selectItem && fileInfo.isFile()) {
+        arguments << "tell application \"Finder\"" << "reveal POSIX file \"" + fileInfo.absoluteFilePath() + "\"" << "activate" << "end tell";
+        QProcess::startDetached("osascript", arguments);
+    } else {
+        arguments << "tell application \"Finder\"" << "activate" << "select POSIX file \"" + pathToOpen + "\"" << "end tell";
+        QProcess::startDetached("osascript", arguments);
+    }
+#else
+    QDesktopServices::openUrl(QUrl::fromLocalFile(pathToOpen));
+#endif
+}
+
+void MainWindow::onOpenInExplorer()
+{
+    if (!contextMenuItem || !contextMenuTree) {
+        return;
+    }
+    
+    QString relativePath = contextMenuItem->data(0, Qt::UserRole).toString();
+    int folderNumber = (contextMenuTree == ui->treeWidgetFolder1) ? 1 : 2;
+    QString fullPath = getFullPath(relativePath, folderNumber);
+    
+    openInExplorer(fullPath, true);
+}
+
+void MainWindow::onShowProperties()
+{
+    if (!contextMenuItem || !contextMenuTree) {
+        return;
+    }
+    
+    QString relativePath = contextMenuItem->data(0, Qt::UserRole).toString();
+    int folderNumber = (contextMenuTree == ui->treeWidgetFolder1) ? 1 : 2;
+    QString fullPath = getFullPath(relativePath, folderNumber);
+    
+    QFileInfo fileInfo(fullPath);
+    if (!fileInfo.exists()) {
+        QMessageBox::warning(this, "Error", "File or folder does not exist.");
+        return;
+    }
+    
+    bool inFolder1 = folder1Files.contains(relativePath);
+    bool inFolder2 = folder2Files.contains(relativePath);
+    
+    FileInfo info1, info2;
+    if (inFolder1) {
+        info1 = folder1Files[relativePath];
+    }
+    if (inFolder2) {
+        info2 = folder2Files[relativePath];
+    }
+    
+    QString status;
+    if (!inFolder1 && inFolder2) {
+        status = "New in Folder 2";
+    } else if (inFolder1 && !inFolder2) {
+        status = "New in Folder 1";
+    } else if (inFolder1 && inFolder2) {
+        if (info1.isDir != info2.isDir) {
+            status = "Type Mismatch";
+        } else if (info1.isDir) {
+            status = "Same";
+        } else {
+            if (info1.modifiedDate != info2.modifiedDate) {
+                if (info1.modifiedDate > info2.modifiedDate) {
+                    status = "Folder 1 Newer";
+                } else {
+                    status = "Folder 2 Newer";
+                }
+            } else if (info1.size != info2.size) {
+                status = "Size Different";
+            } else {
+                status = "Same";
+            }
+        }
+    }
+    
+    showPropertiesDialog(relativePath, fileInfo, info1, info2, inFolder1, inFolder2, status);
+}
+
+void MainWindow::showPropertiesDialog(const QString& relativePath, const QFileInfo& fileInfo, 
+                                      const FileInfo& info1, const FileInfo& info2, 
+                                      bool inFolder1, bool inFolder2, const QString& status)
+{
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle("Properties and Comparison");
+    dialog->setMinimumSize(700, 600);
+    
+    QVBoxLayout* mainLayout = new QVBoxLayout(dialog);
+    mainLayout->setSpacing(10);
+    mainLayout->setMargin(15);
+    
+    QTextEdit* textEdit = new QTextEdit(dialog);
+    textEdit->setReadOnly(true);
+    textEdit->setFont(QFont("Consolas", 9));
+    
+    QString html = QString("<html><head><style>")
+                   + QString("body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }")
+                   + QString("h1 { color: #2c3e50; font-size: 14pt; font-weight: bold; margin-top: 10px; margin-bottom: 5px; border-bottom: 2px solid #3498db; padding-bottom: 3px; }")
+                   + QString("h2 { color: #34495e; font-size: 12pt; font-weight: bold; margin-top: 8px; margin-bottom: 4px; }")
+                   + QString("table { border-collapse: collapse; width: 100%; margin: 5px 0; }")
+                   + QString("td { padding: 4px 8px; border: 1px solid #ddd; }")
+                   + QString("td.label { background-color: #ecf0f1; font-weight: bold; width: 150px; }")
+                   + QString("td.value { background-color: #ffffff; }")
+                   + QString(".status-new { color: #27ae60; font-weight: bold; }")
+                   + QString(".status-modified { color: #e67e22; font-weight: bold; }")
+                   + QString(".status-same { color: #7f8c8d; }")
+                   + QString(".status-deleted { color: #e74c3c; font-weight: bold; }")
+                   + QString(".folder1 { background-color: #ebf5fb; }")
+                   + QString(".folder2 { background-color: #fef9e7; }")
+                   + QString(".comparison { background-color: #e8f8f5; }")
+                   + QString(".missing { color: #95a5a6; font-style: italic; }")
+                   + QString("</style></head><body>");
+    
+    html += QString("<h1>File Information</h1>");
+    html += QString("<table>");
+    html += QString("<tr><td class='label'>Name:</td><td class='value'><b>") + Qt::escape(fileInfo.fileName()) + QString("</b></td></tr>");
+    html += QString("<tr><td class='label'>Relative Path:</td><td class='value'>") + Qt::escape(relativePath) + QString("</td></tr>");
+    html += QString("<tr><td class='label'>Full Path:</td><td class='value'>") + Qt::escape(fileInfo.absoluteFilePath()) + QString("</td></tr>");
+    html += QString("<tr><td class='label'>Type:</td><td class='value'>") + (fileInfo.isDir() ? QString("Directory") : QString("File")) + QString("</td></tr>");
+    html += QString("</table>");
+    
+    html += QString("<h1>Comparison Status</h1>");
+    QString statusClass = QString("status-same");
+    if (status.contains("New") || status.contains("Newer")) {
+        statusClass = QString("status-new");
+    } else if (status.contains("Modified") || status.contains("Different")) {
+        statusClass = QString("status-modified");
+    } else if (status.contains("Deleted")) {
+        statusClass = QString("status-deleted");
+    }
+    html += QString("<p><span class='") + statusClass + QString("'>") + Qt::escape(status) + QString("</span></p>");
+    
+    html += QString("<h1>Folder 1 Information</h1>");
+    html += QString("<table class='folder1'>");
+    if (inFolder1) {
+        html += QString("<tr><td class='label'>Path:</td><td class='value'>") + Qt::escape(getFullPath(relativePath, 1)) + QString("</td></tr>");
+        html += QString("<tr><td class='label'>Created:</td><td class='value'>") + 
+                Qt::escape(info1.createdDate.isValid() ? info1.createdDate.toString("yyyy-MM-dd hh:mm:ss") : QString("N/A")) + QString("</td></tr>");
+        html += QString("<tr><td class='label'>Modified:</td><td class='value'>") + 
+                Qt::escape(info1.modifiedDate.isValid() ? info1.modifiedDate.toString("yyyy-MM-dd hh:mm:ss") : QString("N/A")) + QString("</td></tr>");
+        if (info1.size > 0) {
+            QString sizeStr;
+            if (info1.size < 1024) {
+                sizeStr = QString::number(info1.size) + QString(" B");
+            } else if (info1.size < 1024 * 1024) {
+                sizeStr = QString::number(info1.size / 1024.0, 'f', 2) + QString(" KB");
+            } else {
+                sizeStr = QString::number(info1.size / (1024.0 * 1024.0), 'f', 2) + QString(" MB");
+            }
+            html += QString("<tr><td class='label'>Size:</td><td class='value'><b>") + sizeStr + QString("</b></td></tr>");
+        } else {
+            html += QString("<tr><td class='label'>Size:</td><td class='value'>-</td></tr>");
+        }
+    } else {
+        html += QString("<tr><td colspan='2' class='missing'>Not present in Folder 1</td></tr>");
+    }
+    html += QString("</table>");
+    
+    html += QString("<h1>Folder 2 Information</h1>");
+    html += QString("<table class='folder2'>");
+    if (inFolder2) {
+        html += QString("<tr><td class='label'>Path:</td><td class='value'>") + Qt::escape(getFullPath(relativePath, 2)) + QString("</td></tr>");
+        html += QString("<tr><td class='label'>Created:</td><td class='value'>") + 
+                Qt::escape(info2.createdDate.isValid() ? info2.createdDate.toString("yyyy-MM-dd hh:mm:ss") : QString("N/A")) + QString("</td></tr>");
+        html += QString("<tr><td class='label'>Modified:</td><td class='value'>") + 
+                Qt::escape(info2.modifiedDate.isValid() ? info2.modifiedDate.toString("yyyy-MM-dd hh:mm:ss") : QString("N/A")) + QString("</td></tr>");
+        if (info2.size > 0) {
+            QString sizeStr;
+            if (info2.size < 1024) {
+                sizeStr = QString::number(info2.size) + QString(" B");
+            } else if (info2.size < 1024 * 1024) {
+                sizeStr = QString::number(info2.size / 1024.0, 'f', 2) + QString(" KB");
+            } else {
+                sizeStr = QString::number(info2.size / (1024.0 * 1024.0), 'f', 2) + QString(" MB");
+            }
+            html += QString("<tr><td class='label'>Size:</td><td class='value'><b>") + sizeStr + QString("</b></td></tr>");
+        } else {
+            html += QString("<tr><td class='label'>Size:</td><td class='value'>-</td></tr>");
+        }
+    } else {
+        html += QString("<tr><td colspan='2' class='missing'>Not present in Folder 2</td></tr>");
+    }
+    html += QString("</table>");
+    
+    if (inFolder1 && inFolder2 && !info1.isDir && !info2.isDir) {
+        html += QString("<h1>Comparison Details</h1>");
+        html += QString("<table class='comparison'>");
+        
+        if (info1.modifiedDate != info2.modifiedDate) {
+            qint64 diffSeconds = qAbs(info1.modifiedDate.secsTo(info2.modifiedDate));
+            int days = diffSeconds / 86400;
+            int hours = (diffSeconds % 86400) / 3600;
+            int minutes = (diffSeconds % 3600) / 60;
+            
+            QString timeDiff = QString::number(days) + QString(" day(s), ") + QString::number(hours) + QString(" hour(s), ") + QString::number(minutes) + QString(" minute(s)");
+            html += QString("<tr><td class='label'>Time Difference:</td><td class='value'><b>") + timeDiff + QString("</b></td></tr>");
+            
+            QString newer = (info1.modifiedDate > info2.modifiedDate) ? QString("Folder 1") : QString("Folder 2");
+            html += QString("<tr><td class='label'>Newer Version:</td><td class='value'><b>") + newer + QString("</b></td></tr>");
+        }
+        
+        if (info1.size != info2.size) {
+            qint64 sizeDiff = qAbs(info1.size - info2.size);
+            QString diffStr;
+            if (sizeDiff < 1024) {
+                diffStr = QString::number(sizeDiff) + QString(" B");
+            } else if (sizeDiff < 1024 * 1024) {
+                diffStr = QString::number(sizeDiff / 1024.0, 'f', 2) + QString(" KB");
+            } else {
+                diffStr = QString::number(sizeDiff / (1024.0 * 1024.0), 'f', 2) + QString(" MB");
+            }
+            html += QString("<tr><td class='label'>Size Difference:</td><td class='value'><b>") + diffStr + QString("</b></td></tr>");
+            QString larger = (info1.size > info2.size) ? QString("Folder 1") : QString("Folder 2");
+            html += QString("<tr><td class='label'>Larger File:</td><td class='value'><b>") + larger + QString("</b></td></tr>");
+        }
+        html += QString("</table>");
+    }
+    
+    html += QString("<h1>Current File Properties</h1>");
+    html += QString("<table>");
+    html += QString("<tr><td class='label'>Readable:</td><td class='value'>") + (fileInfo.isReadable() ? QString("Yes") : QString("No")) + QString("</td></tr>");
+    html += QString("<tr><td class='label'>Writable:</td><td class='value'>") + (fileInfo.isWritable() ? QString("Yes") : QString("No")) + QString("</td></tr>");
+    html += QString("<tr><td class='label'>Executable:</td><td class='value'>") + (fileInfo.isExecutable() ? QString("Yes") : QString("No")) + QString("</td></tr>");
+    html += QString("</table>");
+    
+    html += QString("</body></html>");
+    
+    textEdit->setHtml(html);
+    
+    QPushButton* closeButton = new QPushButton("Close", dialog);
+    connect(closeButton, SIGNAL(clicked()), dialog, SLOT(accept()));
+    
+    mainLayout->addWidget(textEdit);
+    mainLayout->addWidget(closeButton);
+    
+    dialog->exec();
+    delete dialog;
+}
+
+void MainWindow::onCopyPath()
+{
+    if (!contextMenuItem || !contextMenuTree) {
+        return;
+    }
+    
+    QString relativePath = contextMenuItem->data(0, Qt::UserRole).toString();
+    int folderNumber = (contextMenuTree == ui->treeWidgetFolder1) ? 1 : 2;
+    QString fullPath = getFullPath(relativePath, folderNumber);
+    
+    QApplication::clipboard()->setText(fullPath);
+    ui->statusBar->showMessage("Path copied to clipboard", 2000);
+}
+
+void MainWindow::onCopyFileName()
+{
+    if (!contextMenuItem || !contextMenuTree) {
+        return;
+    }
+    
+    QString relativePath = contextMenuItem->data(0, Qt::UserRole).toString();
+    QFileInfo fileInfo(relativePath);
+    QString fileName = fileInfo.fileName();
+    
+    QApplication::clipboard()->setText(fileName);
+    ui->statusBar->showMessage("File name copied to clipboard", 2000);
 }
 
 void MainWindow::onFolder1ScrollChanged(int value)

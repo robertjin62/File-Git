@@ -49,6 +49,12 @@ private slots:
     void onFilter2Changed();
     void onStatusFilter1Changed();
     void onStatusFilter2Changed();
+    void onItemDoubleClicked(QTreeWidgetItem* item, int column);
+    void showContextMenu(const QPoint& pos);
+    void onOpenInExplorer();
+    void onShowProperties();
+    void onCopyPath();
+    void onCopyFileName();
 
 private:
     void scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath = "", int *fileCount = 0);
@@ -77,6 +83,13 @@ private:
     void syncSelection(QTreeWidget* source, QTreeWidget* target);
     void applyFilter(QTreeWidget* treeWidget, const QString& textFilter, const QString& statusFilter);
     void setupFilterComboBoxes();
+    void setupContextMenus();
+    void openInExplorer(const QString& filePath, bool selectItem = true);
+    void showPropertiesDialog(const QString& relativePath, const QFileInfo& fileInfo, 
+                              const FileInfo& info1, const FileInfo& info2, 
+                              bool inFolder1, bool inFolder2, const QString& status);
+    QTreeWidgetItem* contextMenuItem;
+    QTreeWidget* contextMenuTree;
 };
 
 #endif // MAINWINDOW_H
