@@ -58,17 +58,34 @@
      </layout>
     </item>
     <item>
-     <widget class="QPushButton" name="pushButtonCompare">
-      <property name="text">
-       <string>Compare Folders</string>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>30</height>
-       </size>
-      </property>
-     </widget>
+     <layout class="QHBoxLayout" name="horizontalLayout_Compare">
+      <item>
+       <widget class="QPushButton" name="pushButtonCompare">
+        <property name="text">
+         <string>Compare Folders</string>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>30</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="progressBar">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>0</number>
+        </property>
+        <property name="textVisible">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
     <item>
      <widget class="QSplitter" name="splitter">

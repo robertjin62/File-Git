@@ -41,8 +41,9 @@ private slots:
     void onFolder2ScrollChanged(int value);
 
 private:
-    void scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath = "");
+    void scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath = "", int *fileCount = 0);
     void compareFolders();
+    int countFilesRecursive(const QString &folderPath);
     void addTreeItem(const QString &status, const QString &relativePath, 
                      const FileInfo &info1, const FileInfo &info2);
     bool copyFileOrFolder(const QString &source, const QString &destination);

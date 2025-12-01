@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'mainwindow.ui'
 **
-** Created: Mon Dec 1 10:41:03 2025
+** Created: Mon Dec 1 16:41:42 2025
 **      by: Qt User Interface Compiler version 4.7.0
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
@@ -20,6 +20,7 @@
 #include <QtGui/QLineEdit>
 #include <QtGui/QMainWindow>
 #include <QtGui/QMenuBar>
+#include <QtGui/QProgressBar>
 #include <QtGui/QPushButton>
 #include <QtGui/QSplitter>
 #include <QtGui/QStatusBar>
@@ -42,7 +43,9 @@ public:
     QLabel *labelFolder2;
     QLineEdit *lineEditFolder2;
     QPushButton *pushButtonBrowse2;
+    QHBoxLayout *horizontalLayout_Compare;
     QPushButton *pushButtonCompare;
+    QProgressBar *progressBar;
     QSplitter *splitter;
     QWidget *widgetFolder1;
     QVBoxLayout *verticalLayout_2;
@@ -113,11 +116,25 @@ public:
 
         verticalLayout->addLayout(horizontalLayout_2);
 
+        horizontalLayout_Compare = new QHBoxLayout();
+        horizontalLayout_Compare->setSpacing(6);
+        horizontalLayout_Compare->setObjectName(QString::fromUtf8("horizontalLayout_Compare"));
         pushButtonCompare = new QPushButton(centralWidget);
         pushButtonCompare->setObjectName(QString::fromUtf8("pushButtonCompare"));
         pushButtonCompare->setMinimumSize(QSize(0, 30));
 
-        verticalLayout->addWidget(pushButtonCompare);
+        horizontalLayout_Compare->addWidget(pushButtonCompare);
+
+        progressBar = new QProgressBar(centralWidget);
+        progressBar->setObjectName(QString::fromUtf8("progressBar"));
+        progressBar->setMinimum(0);
+        progressBar->setMaximum(0);
+        progressBar->setTextVisible(true);
+
+        horizontalLayout_Compare->addWidget(progressBar);
+
+
+        verticalLayout->addLayout(horizontalLayout_Compare);
 
         splitter = new QSplitter(centralWidget);
         splitter->setObjectName(QString::fromUtf8("splitter"));

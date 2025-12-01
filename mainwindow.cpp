@@ -83,7 +83,35 @@ void MainWindow::onBrowseFolder2()
     }
 }
 
-void MainWindow::scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath)
+int MainWindow::countFilesRecursive(const QString &folderPath)
+{
+    int count = 0;
+    QDir dir(folderPath);
+    if (!dir.exists()) {
+        return 0;
+    }
+    
+    QFileInfoList entries = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries, 
+                                              QDir::Name | QDir::DirsFirst);
+    
+    int processed = 0;
+    foreach (const QFileInfo &info, entries) {
+        count++;
+        processed++;
+        
+        if (processed % 20 == 0) {
+            ui->statusBar->showMessage(QString("Counting files... %1 found so far").arg(count));
+            QApplication::processEvents();
+        }
+        
+        if (info.isDir()) {
+            count += countFilesRecursive(info.absoluteFilePath());
+        }
+    }
+    return count;
+}
+
+void MainWindow::scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath, int *fileCount)
 {
     QDir dir(folderPath);
     if (!dir.exists()) {
@@ -93,6 +121,7 @@ void MainWindow::scanFolder(const QString &folderPath, QMap<QString, FileInfo> &
     QFileInfoList entries = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries, 
                                               QDir::Name | QDir::DirsFirst);
     
+    int processed = 0;
     foreach (const QFileInfo &info, entries) {
         QString relativePath = basePath.isEmpty() ? info.fileName() : basePath + "/" + info.fileName();
         
@@ -105,7 +134,25 @@ void MainWindow::scanFolder(const QString &folderPath, QMap<QString, FileInfo> &
         fileMap[relativePath] = fileInfo;
         
         if (info.isDir()) {
-            scanFolder(info.absoluteFilePath(), fileMap, relativePath);
+            scanFolder(info.absoluteFilePath(), fileMap, relativePath, fileCount);
+        }
+        
+        if (fileCount) {
+            (*fileCount)++;
+            processed++;
+            
+            if (processed % 10 == 0) {
+                int maxValue = ui->progressBar->maximum();
+                if (maxValue > 0) {
+                    int progressValue = qMin(*fileCount, maxValue);
+                    ui->progressBar->setValue(progressValue);
+                    int percent = (maxValue > 0) ? (progressValue * 100 / maxValue) : 0;
+                    ui->statusBar->showMessage(QString("Scanning... %1/%2 files (%3%)").arg(progressValue).arg(maxValue).arg(percent));
+                } else {
+                    ui->statusBar->showMessage(QString("Scanning... %1 files processed").arg(*fileCount));
+                }
+                QApplication::processEvents();
+            }
         }
     }
 }
@@ -133,24 +180,62 @@ void MainWindow::onCompare()
         return;
     }
     
-    ui->statusBar->showMessage("Scanning folders...");
+    ui->pushButtonCompare->setEnabled(false);
+    ui->treeWidgetFolder1->setEnabled(false);
+    ui->treeWidgetFolder2->setEnabled(false);
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 0);
+    ui->progressBar->setValue(0);
+    ui->statusBar->showMessage("Counting files in Folder 1...");
+    QApplication::processEvents();
+    
+    int folder1Count = countFilesRecursive(folder1Path);
+    ui->statusBar->showMessage("Counting files in Folder 2...");
+    QApplication::processEvents();
+    
+    int folder2Count = countFilesRecursive(folder2Path);
+    int totalFiles = folder1Count + folder2Count;
+    
+    if (totalFiles > 0) {
+        ui->progressBar->setRange(0, totalFiles);
+        ui->progressBar->setValue(0);
+    } else {
+        ui->progressBar->setRange(0, 0);
+    }
+    
+    ui->statusBar->showMessage(QString("Scanning Folder 1... (0/%1)").arg(totalFiles));
     QApplication::processEvents();
     
     folder1Files.clear();
     folder2Files.clear();
     
-    scanFolder(folder1Path, folder1Files);
-    scanFolder(folder2Path, folder2Files);
+    int fileCount = 0;
+    scanFolder(folder1Path, folder1Files, "", &fileCount);
+    
+    ui->statusBar->showMessage(QString("Scanning Folder 2... (%1/%2)").arg(fileCount).arg(totalFiles));
+    QApplication::processEvents();
+    
+    scanFolder(folder2Path, folder2Files, "", &fileCount);
+    
+    ui->statusBar->showMessage("Comparing files...");
+    ui->progressBar->setRange(0, 0);
+    QApplication::processEvents();
     
     ui->treeWidgetFolder1->clear();
     ui->treeWidgetFolder2->clear();
     
     compareFolders();
     
-    int folder1Count = ui->treeWidgetFolder1->topLevelItemCount();
-    int folder2Count = ui->treeWidgetFolder2->topLevelItemCount();
+    ui->progressBar->setRange(0, 0);
+    ui->progressBar->setVisible(false);
+    ui->pushButtonCompare->setEnabled(true);
+    ui->treeWidgetFolder1->setEnabled(true);
+    ui->treeWidgetFolder2->setEnabled(true);
+    
+    int folder1ItemCount = ui->treeWidgetFolder1->topLevelItemCount();
+    int folder2ItemCount = ui->treeWidgetFolder2->topLevelItemCount();
     ui->statusBar->showMessage(QString("Comparison complete. Folder 1: %1 items | Folder 2: %2 items")
-                               .arg(folder1Count).arg(folder2Count));
+                               .arg(folder1ItemCount).arg(folder2ItemCount));
 }
 
 void MainWindow::compareFolders()
@@ -164,7 +249,18 @@ void MainWindow::compareFolders()
         allPaths.insert(path);
     }
     
+    int totalPaths = allPaths.size();
+    int processed = 0;
+    
     foreach (const QString &relativePath, allPaths) {
+        processed++;
+        
+        if (processed % 100 == 0) {
+            int percent = (totalPaths > 0) ? (processed * 100 / totalPaths) : 0;
+            ui->statusBar->showMessage(QString("Comparing files... %1/%2 (%3%)").arg(processed).arg(totalPaths).arg(percent));
+            QApplication::processEvents();
+        }
+        
         bool inFolder1 = folder1Files.contains(relativePath);
         bool inFolder2 = folder2Files.contains(relativePath);
         
@@ -203,6 +299,9 @@ void MainWindow::compareFolders()
         
         addTreeItem(status, relativePath, info1, info2);
     }
+    
+    ui->statusBar->showMessage("Expanding tree views...");
+    QApplication::processEvents();
     
     ui->treeWidgetFolder1->expandAll();
     ui->treeWidgetFolder2->expandAll();
