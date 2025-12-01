@@ -29,13 +29,14 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushButtonMoveTo1, SIGNAL(clicked()), this, SLOT(onMoveToFolder1()));
     
     QStringList headers1;
-    headers1 << "Status" << "File/Folder" << "Modified Date" << "Size";
+    headers1 << "Status" << "File/Folder" << "Created Date" << "Modified Date" << "Size";
     ui->treeWidgetFolder1->setHeaderLabels(headers1);
-    ui->treeWidgetFolder1->setColumnCount(4);
+    ui->treeWidgetFolder1->setColumnCount(5);
     ui->treeWidgetFolder1->setColumnWidth(0, 120);
-    ui->treeWidgetFolder1->setColumnWidth(1, 400);
+    ui->treeWidgetFolder1->setColumnWidth(1, 350);
     ui->treeWidgetFolder1->setColumnWidth(2, 150);
-    ui->treeWidgetFolder1->setColumnWidth(3, 100);
+    ui->treeWidgetFolder1->setColumnWidth(3, 150);
+    ui->treeWidgetFolder1->setColumnWidth(4, 100);
     ui->treeWidgetFolder1->setAlternatingRowColors(true);
     ui->treeWidgetFolder1->setRootIsDecorated(true);
     ui->treeWidgetFolder1->installEventFilter(this);
@@ -49,13 +50,14 @@ MainWindow::MainWindow(QWidget *parent) :
             this, SLOT(onFolder1ScrollChanged(int)));
     
     QStringList headers2;
-    headers2 << "Status" << "File/Folder" << "Modified Date" << "Size";
+    headers2 << "Status" << "File/Folder" << "Created Date" << "Modified Date" << "Size";
     ui->treeWidgetFolder2->setHeaderLabels(headers2);
-    ui->treeWidgetFolder2->setColumnCount(4);
+    ui->treeWidgetFolder2->setColumnCount(5);
     ui->treeWidgetFolder2->setColumnWidth(0, 120);
-    ui->treeWidgetFolder2->setColumnWidth(1, 400);
+    ui->treeWidgetFolder2->setColumnWidth(1, 350);
     ui->treeWidgetFolder2->setColumnWidth(2, 150);
-    ui->treeWidgetFolder2->setColumnWidth(3, 100);
+    ui->treeWidgetFolder2->setColumnWidth(3, 150);
+    ui->treeWidgetFolder2->setColumnWidth(4, 100);
     ui->treeWidgetFolder2->setAlternatingRowColors(true);
     ui->treeWidgetFolder2->setRootIsDecorated(true);
     ui->treeWidgetFolder2->installEventFilter(this);
@@ -381,6 +383,7 @@ void MainWindow::scanFolder(const QString &folderPath, QMap<QString, FileInfo> &
         FileInfo fileInfo;
         fileInfo.path = relativePath;
         fileInfo.modifiedDate = info.lastModified();
+        fileInfo.createdDate = info.created();
         fileInfo.size = info.size();
         fileInfo.isDir = info.isDir();
         
@@ -610,10 +613,16 @@ void MainWindow::addTreeItem(const QString &status, const QString &relativePath,
         item1->setText(0, displayStatus1);
         item1->setText(1, relativePath);
         
-        if (info1.modifiedDate.isValid()) {
-            item1->setText(2, info1.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
+        if (info1.createdDate.isValid()) {
+            item1->setText(2, info1.createdDate.toString("yyyy-MM-dd hh:mm:ss"));
         } else {
             item1->setText(2, "N/A");
+        }
+        
+        if (info1.modifiedDate.isValid()) {
+            item1->setText(3, info1.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
+        } else {
+            item1->setText(3, "N/A");
         }
         
         if (info1.size > 0) {
@@ -625,9 +634,9 @@ void MainWindow::addTreeItem(const QString &status, const QString &relativePath,
             } else {
                 sizeStr = QString::number(info1.size / (1024.0 * 1024.0), 'f', 2) + " MB";
             }
-            item1->setText(3, sizeStr);
+            item1->setText(4, sizeStr);
         } else {
-            item1->setText(3, "-");
+            item1->setText(4, "-");
         }
         
         item1->setForeground(0, QBrush(color));
@@ -641,10 +650,16 @@ void MainWindow::addTreeItem(const QString &status, const QString &relativePath,
         item2->setText(0, displayStatus2);
         item2->setText(1, relativePath);
         
-        if (info2.modifiedDate.isValid()) {
-            item2->setText(2, info2.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
+        if (info2.createdDate.isValid()) {
+            item2->setText(2, info2.createdDate.toString("yyyy-MM-dd hh:mm:ss"));
         } else {
             item2->setText(2, "N/A");
+        }
+        
+        if (info2.modifiedDate.isValid()) {
+            item2->setText(3, info2.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
+        } else {
+            item2->setText(3, "N/A");
         }
         
         if (info2.size > 0) {
@@ -656,9 +671,9 @@ void MainWindow::addTreeItem(const QString &status, const QString &relativePath,
             } else {
                 sizeStr = QString::number(info2.size / (1024.0 * 1024.0), 'f', 2) + " MB";
             }
-            item2->setText(3, sizeStr);
+            item2->setText(4, sizeStr);
         } else {
-            item2->setText(3, "-");
+            item2->setText(4, "-");
         }
         
         item2->setForeground(0, QBrush(color));

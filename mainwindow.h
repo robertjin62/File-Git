@@ -16,6 +16,7 @@ namespace Ui {
 struct FileInfo {
     QString path;
     QDateTime modifiedDate;
+    QDateTime createdDate;
     qint64 size;
     bool isDir;
 };
