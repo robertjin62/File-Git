@@ -527,6 +527,102 @@ bool MainWindow::moveFileOrFolder(const QString &source, const QString &destinat
     return false;
 }
 
+int MainWindow::countFilesForOperation(const QString &path)
+{
+    QFileInfo info(path);
+    if (!info.exists()) {
+        return 0;
+    }
+    
+    if (info.isDir()) {
+        int count = 1;
+        QDir dir(path);
+        QFileInfoList entries = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries);
+        foreach (const QFileInfo &entry, entries) {
+            count += countFilesForOperation(entry.absoluteFilePath());
+        }
+        return count;
+    } else {
+        return 1;
+    }
+}
+
+bool MainWindow::copyFileOrFolderWithProgress(const QString &source, const QString &destination, int *processed, int *total)
+{
+    QFileInfo sourceInfo(source);
+    QFileInfo destInfo(destination);
+    
+    if (!sourceInfo.exists()) {
+        return false;
+    }
+    
+    if (sourceInfo.isDir()) {
+        QDir destDir;
+        if (!destDir.exists(destination)) {
+            if (!destDir.mkpath(destination)) {
+                return false;
+            }
+        }
+        
+        if (processed && total) {
+            (*processed)++;
+            if (*processed % 10 == 0) {
+                int percent = (*total > 0) ? (*processed * 100 / *total) : 0;
+                ui->progressBar->setValue(*processed);
+                ui->statusBar->showMessage(QString("Copying... %1/%2 (%3%)").arg(*processed).arg(*total).arg(percent));
+                QApplication::processEvents();
+            }
+        }
+        
+        QDir sourceDir(source);
+        QFileInfoList entries = sourceDir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries);
+        
+        foreach (const QFileInfo &entry, entries) {
+            QString destPath = QDir(destination).filePath(entry.fileName());
+            if (!copyFileOrFolderWithProgress(entry.absoluteFilePath(), destPath, processed, total)) {
+                return false;
+            }
+        }
+        return true;
+    } else {
+        if (destInfo.exists()) {
+            QFile::remove(destination);
+        }
+        
+        QDir destDir = destInfo.absoluteDir();
+        if (!destDir.exists()) {
+            destDir.mkpath(".");
+        }
+        
+        bool result = QFile::copy(source, destination);
+        
+        if (processed && total && result) {
+            (*processed)++;
+            if (*processed % 10 == 0 || *processed == *total) {
+                int percent = (*total > 0) ? (*processed * 100 / *total) : 0;
+                ui->progressBar->setValue(*processed);
+                ui->statusBar->showMessage(QString("Copying... %1/%2 (%3%)").arg(*processed).arg(*total).arg(percent));
+                QApplication::processEvents();
+            }
+        }
+        
+        return result;
+    }
+}
+
+bool MainWindow::moveFileOrFolderWithProgress(const QString &source, const QString &destination, int *processed, int *total)
+{
+    if (copyFileOrFolderWithProgress(source, destination, processed, total)) {
+        QFileInfo sourceInfo(source);
+        if (sourceInfo.isDir()) {
+            return removeDirectoryRecursive(source);
+        } else {
+            return QFile::remove(source);
+        }
+    }
+    return false;
+}
+
 void MainWindow::onCopyToFolder2()
 {
     QList<QTreeWidgetItem*> selected = ui->treeWidgetFolder1->selectedItems();
@@ -534,24 +630,71 @@ void MainWindow::onCopyToFolder2()
         return;
     }
     
-    int count = 0;
+    ui->pushButtonCopyTo2->setEnabled(false);
+    ui->pushButtonCopyTo1->setEnabled(false);
+    ui->pushButtonMoveTo2->setEnabled(false);
+    ui->pushButtonMoveTo1->setEnabled(false);
+    ui->treeWidgetFolder1->setEnabled(false);
+    ui->treeWidgetFolder2->setEnabled(false);
+    
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 0);
+    ui->statusBar->showMessage("Counting files to copy...");
+    QApplication::processEvents();
+    
+    int totalFiles = 0;
+    foreach (QTreeWidgetItem *item, selected) {
+        QString relativePath = item->data(0, Qt::UserRole).toString();
+        QString sourcePath = getFullPath(relativePath, 1);
+        totalFiles += countFilesForOperation(sourcePath);
+    }
+    
+    if (totalFiles > 0) {
+        ui->progressBar->setRange(0, totalFiles);
+        ui->progressBar->setValue(0);
+    } else {
+        ui->progressBar->setRange(0, 0);
+    }
+    
+    int processed = 0;
+    int successCount = 0;
+    QStringList failedItems;
+    
     foreach (QTreeWidgetItem *item, selected) {
         QString relativePath = item->data(0, Qt::UserRole).toString();
         QString sourcePath = getFullPath(relativePath, 1);
         QString destPath = getFullPath(relativePath, 2);
         
-        if (copyFileOrFolder(sourcePath, destPath)) {
-            count++;
+        ui->statusBar->showMessage(QString("Copying: %1").arg(relativePath));
+        QApplication::processEvents();
+        
+        if (copyFileOrFolderWithProgress(sourcePath, destPath, &processed, &totalFiles)) {
+            successCount++;
         } else {
-            QMessageBox::warning(this, "Error", 
-                QString("Failed to copy: %1").arg(relativePath));
+            failedItems.append(relativePath);
         }
     }
     
-    if (count > 0) {
-        QMessageBox::information(this, "Success", 
-            QString("Successfully copied %1 item(s) to Folder 2.").arg(count));
+    ui->progressBar->setVisible(false);
+    ui->pushButtonCopyTo2->setEnabled(true);
+    ui->pushButtonCopyTo1->setEnabled(true);
+    ui->pushButtonMoveTo2->setEnabled(true);
+    ui->pushButtonMoveTo1->setEnabled(true);
+    ui->treeWidgetFolder1->setEnabled(true);
+    ui->treeWidgetFolder2->setEnabled(true);
+    
+    if (successCount > 0) {
+        if (failedItems.isEmpty()) {
+            QMessageBox::information(this, "Success", 
+                QString("Successfully copied %1 item(s) to Folder 2.").arg(successCount));
+        } else {
+            QMessageBox::warning(this, "Partial Success", 
+                QString("Copied %1 item(s) successfully.\nFailed: %2").arg(successCount).arg(failedItems.join(", ")));
+        }
         onCompare();
+    } else if (!failedItems.isEmpty()) {
+        QMessageBox::warning(this, "Error", 
+            QString("Failed to copy all items:\n%1").arg(failedItems.join("\n")));
     }
 }
 
@@ -562,24 +705,71 @@ void MainWindow::onCopyToFolder1()
         return;
     }
     
-    int count = 0;
+    ui->pushButtonCopyTo2->setEnabled(false);
+    ui->pushButtonCopyTo1->setEnabled(false);
+    ui->pushButtonMoveTo2->setEnabled(false);
+    ui->pushButtonMoveTo1->setEnabled(false);
+    ui->treeWidgetFolder1->setEnabled(false);
+    ui->treeWidgetFolder2->setEnabled(false);
+    
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 0);
+    ui->statusBar->showMessage("Counting files to copy...");
+    QApplication::processEvents();
+    
+    int totalFiles = 0;
+    foreach (QTreeWidgetItem *item, selected) {
+        QString relativePath = item->data(0, Qt::UserRole).toString();
+        QString sourcePath = getFullPath(relativePath, 2);
+        totalFiles += countFilesForOperation(sourcePath);
+    }
+    
+    if (totalFiles > 0) {
+        ui->progressBar->setRange(0, totalFiles);
+        ui->progressBar->setValue(0);
+    } else {
+        ui->progressBar->setRange(0, 0);
+    }
+    
+    int processed = 0;
+    int successCount = 0;
+    QStringList failedItems;
+    
     foreach (QTreeWidgetItem *item, selected) {
         QString relativePath = item->data(0, Qt::UserRole).toString();
         QString sourcePath = getFullPath(relativePath, 2);
         QString destPath = getFullPath(relativePath, 1);
         
-        if (copyFileOrFolder(sourcePath, destPath)) {
-            count++;
+        ui->statusBar->showMessage(QString("Copying: %1").arg(relativePath));
+        QApplication::processEvents();
+        
+        if (copyFileOrFolderWithProgress(sourcePath, destPath, &processed, &totalFiles)) {
+            successCount++;
         } else {
-            QMessageBox::warning(this, "Error", 
-                QString("Failed to copy: %1").arg(relativePath));
+            failedItems.append(relativePath);
         }
     }
     
-    if (count > 0) {
-        QMessageBox::information(this, "Success", 
-            QString("Successfully copied %1 item(s) to Folder 1.").arg(count));
+    ui->progressBar->setVisible(false);
+    ui->pushButtonCopyTo2->setEnabled(true);
+    ui->pushButtonCopyTo1->setEnabled(true);
+    ui->pushButtonMoveTo2->setEnabled(true);
+    ui->pushButtonMoveTo1->setEnabled(true);
+    ui->treeWidgetFolder1->setEnabled(true);
+    ui->treeWidgetFolder2->setEnabled(true);
+    
+    if (successCount > 0) {
+        if (failedItems.isEmpty()) {
+            QMessageBox::information(this, "Success", 
+                QString("Successfully copied %1 item(s) to Folder 1.").arg(successCount));
+        } else {
+            QMessageBox::warning(this, "Partial Success", 
+                QString("Copied %1 item(s) successfully.\nFailed: %2").arg(successCount).arg(failedItems.join(", ")));
+        }
         onCompare();
+    } else if (!failedItems.isEmpty()) {
+        QMessageBox::warning(this, "Error", 
+            QString("Failed to copy all items:\n%1").arg(failedItems.join("\n")));
     }
 }
 
@@ -598,24 +788,71 @@ void MainWindow::onMoveToFolder2()
         return;
     }
     
-    int count = 0;
+    ui->pushButtonCopyTo2->setEnabled(false);
+    ui->pushButtonCopyTo1->setEnabled(false);
+    ui->pushButtonMoveTo2->setEnabled(false);
+    ui->pushButtonMoveTo1->setEnabled(false);
+    ui->treeWidgetFolder1->setEnabled(false);
+    ui->treeWidgetFolder2->setEnabled(false);
+    
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 0);
+    ui->statusBar->showMessage("Counting files to move...");
+    QApplication::processEvents();
+    
+    int totalFiles = 0;
+    foreach (QTreeWidgetItem *item, selected) {
+        QString relativePath = item->data(0, Qt::UserRole).toString();
+        QString sourcePath = getFullPath(relativePath, 1);
+        totalFiles += countFilesForOperation(sourcePath);
+    }
+    
+    if (totalFiles > 0) {
+        ui->progressBar->setRange(0, totalFiles);
+        ui->progressBar->setValue(0);
+    } else {
+        ui->progressBar->setRange(0, 0);
+    }
+    
+    int processed = 0;
+    int successCount = 0;
+    QStringList failedItems;
+    
     foreach (QTreeWidgetItem *item, selected) {
         QString relativePath = item->data(0, Qt::UserRole).toString();
         QString sourcePath = getFullPath(relativePath, 1);
         QString destPath = getFullPath(relativePath, 2);
         
-        if (moveFileOrFolder(sourcePath, destPath)) {
-            count++;
+        ui->statusBar->showMessage(QString("Moving: %1").arg(relativePath));
+        QApplication::processEvents();
+        
+        if (moveFileOrFolderWithProgress(sourcePath, destPath, &processed, &totalFiles)) {
+            successCount++;
         } else {
-            QMessageBox::warning(this, "Error", 
-                QString("Failed to move: %1").arg(relativePath));
+            failedItems.append(relativePath);
         }
     }
     
-    if (count > 0) {
-        QMessageBox::information(this, "Success", 
-            QString("Successfully moved %1 item(s) to Folder 2.").arg(count));
+    ui->progressBar->setVisible(false);
+    ui->pushButtonCopyTo2->setEnabled(true);
+    ui->pushButtonCopyTo1->setEnabled(true);
+    ui->pushButtonMoveTo2->setEnabled(true);
+    ui->pushButtonMoveTo1->setEnabled(true);
+    ui->treeWidgetFolder1->setEnabled(true);
+    ui->treeWidgetFolder2->setEnabled(true);
+    
+    if (successCount > 0) {
+        if (failedItems.isEmpty()) {
+            QMessageBox::information(this, "Success", 
+                QString("Successfully moved %1 item(s) to Folder 2.").arg(successCount));
+        } else {
+            QMessageBox::warning(this, "Partial Success", 
+                QString("Moved %1 item(s) successfully.\nFailed: %2").arg(successCount).arg(failedItems.join(", ")));
+        }
         onCompare();
+    } else if (!failedItems.isEmpty()) {
+        QMessageBox::warning(this, "Error", 
+            QString("Failed to move all items:\n%1").arg(failedItems.join("\n")));
     }
 }
 
@@ -634,23 +871,70 @@ void MainWindow::onMoveToFolder1()
         return;
     }
     
-    int count = 0;
+    ui->pushButtonCopyTo2->setEnabled(false);
+    ui->pushButtonCopyTo1->setEnabled(false);
+    ui->pushButtonMoveTo2->setEnabled(false);
+    ui->pushButtonMoveTo1->setEnabled(false);
+    ui->treeWidgetFolder1->setEnabled(false);
+    ui->treeWidgetFolder2->setEnabled(false);
+    
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 0);
+    ui->statusBar->showMessage("Counting files to move...");
+    QApplication::processEvents();
+    
+    int totalFiles = 0;
+    foreach (QTreeWidgetItem *item, selected) {
+        QString relativePath = item->data(0, Qt::UserRole).toString();
+        QString sourcePath = getFullPath(relativePath, 2);
+        totalFiles += countFilesForOperation(sourcePath);
+    }
+    
+    if (totalFiles > 0) {
+        ui->progressBar->setRange(0, totalFiles);
+        ui->progressBar->setValue(0);
+    } else {
+        ui->progressBar->setRange(0, 0);
+    }
+    
+    int processed = 0;
+    int successCount = 0;
+    QStringList failedItems;
+    
     foreach (QTreeWidgetItem *item, selected) {
         QString relativePath = item->data(0, Qt::UserRole).toString();
         QString sourcePath = getFullPath(relativePath, 2);
         QString destPath = getFullPath(relativePath, 1);
         
-        if (moveFileOrFolder(sourcePath, destPath)) {
-            count++;
+        ui->statusBar->showMessage(QString("Moving: %1").arg(relativePath));
+        QApplication::processEvents();
+        
+        if (moveFileOrFolderWithProgress(sourcePath, destPath, &processed, &totalFiles)) {
+            successCount++;
         } else {
-            QMessageBox::warning(this, "Error", 
-                QString("Failed to move: %1").arg(relativePath));
+            failedItems.append(relativePath);
         }
     }
     
-    if (count > 0) {
-        QMessageBox::information(this, "Success", 
-            QString("Successfully moved %1 item(s) to Folder 1.").arg(count));
+    ui->progressBar->setVisible(false);
+    ui->pushButtonCopyTo2->setEnabled(true);
+    ui->pushButtonCopyTo1->setEnabled(true);
+    ui->pushButtonMoveTo2->setEnabled(true);
+    ui->pushButtonMoveTo1->setEnabled(true);
+    ui->treeWidgetFolder1->setEnabled(true);
+    ui->treeWidgetFolder2->setEnabled(true);
+    
+    if (successCount > 0) {
+        if (failedItems.isEmpty()) {
+            QMessageBox::information(this, "Success", 
+            QString("Successfully moved %1 item(s) to Folder 1.").arg(successCount));
+        } else {
+            QMessageBox::warning(this, "Partial Success", 
+                QString("Moved %1 item(s) successfully.\nFailed: %2").arg(successCount).arg(failedItems.join(", ")));
+        }
         onCompare();
+    } else if (!failedItems.isEmpty()) {
+        QMessageBox::warning(this, "Error", 
+            QString("Failed to move all items:\n%1").arg(failedItems.join("\n")));
     }
 }

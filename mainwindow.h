@@ -49,6 +49,9 @@ private:
     bool copyFileOrFolder(const QString &source, const QString &destination);
     bool moveFileOrFolder(const QString &source, const QString &destination);
     bool removeDirectoryRecursive(const QString &dirPath);
+    int countFilesForOperation(const QString &path);
+    bool copyFileOrFolderWithProgress(const QString &source, const QString &destination, int *processed, int *total);
+    bool moveFileOrFolderWithProgress(const QString &source, const QString &destination, int *processed, int *total);
     QString getFullPath(const QString &relativePath, int folderNumber);
     void updateButtonStates();
 
