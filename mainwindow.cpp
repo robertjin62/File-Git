@@ -10,6 +10,7 @@
 #include <QBrush>
 #include <QColor>
 #include <QApplication>
+#include <QScrollBar>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -20,21 +21,39 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushButtonBrowse1, SIGNAL(clicked()), this, SLOT(onBrowseFolder1()));
     connect(ui->pushButtonBrowse2, SIGNAL(clicked()), this, SLOT(onBrowseFolder2()));
     connect(ui->pushButtonCompare, SIGNAL(clicked()), this, SLOT(onCompare()));
-    connect(ui->treeWidget, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
     connect(ui->pushButtonCopyTo2, SIGNAL(clicked()), this, SLOT(onCopyToFolder2()));
     connect(ui->pushButtonCopyTo1, SIGNAL(clicked()), this, SLOT(onCopyToFolder1()));
     connect(ui->pushButtonMoveTo2, SIGNAL(clicked()), this, SLOT(onMoveToFolder2()));
     connect(ui->pushButtonMoveTo1, SIGNAL(clicked()), this, SLOT(onMoveToFolder1()));
     
-    QStringList headers;
-    headers << "Status" << "File/Folder" << "Folder 1 Date" << "Folder 2 Date" << "Size";
-    ui->treeWidget->setHeaderLabels(headers);
-    ui->treeWidget->setColumnCount(5);
-    ui->treeWidget->setColumnWidth(0, 100);
-    ui->treeWidget->setColumnWidth(1, 300);
-    ui->treeWidget->setColumnWidth(2, 150);
-    ui->treeWidget->setColumnWidth(3, 150);
-    ui->treeWidget->setColumnWidth(4, 100);
+    QStringList headers1;
+    headers1 << "Status" << "File/Folder" << "Modified Date" << "Size";
+    ui->treeWidgetFolder1->setHeaderLabels(headers1);
+    ui->treeWidgetFolder1->setColumnCount(4);
+    ui->treeWidgetFolder1->setColumnWidth(0, 120);
+    ui->treeWidgetFolder1->setColumnWidth(1, 400);
+    ui->treeWidgetFolder1->setColumnWidth(2, 150);
+    ui->treeWidgetFolder1->setColumnWidth(3, 100);
+    connect(ui->treeWidgetFolder1, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
+    connect(ui->treeWidgetFolder1->verticalScrollBar(), SIGNAL(valueChanged(int)), 
+            this, SLOT(onFolder1ScrollChanged(int)));
+    
+    QStringList headers2;
+    headers2 << "Status" << "File/Folder" << "Modified Date" << "Size";
+    ui->treeWidgetFolder2->setHeaderLabels(headers2);
+    ui->treeWidgetFolder2->setColumnCount(4);
+    ui->treeWidgetFolder2->setColumnWidth(0, 120);
+    ui->treeWidgetFolder2->setColumnWidth(1, 400);
+    ui->treeWidgetFolder2->setColumnWidth(2, 150);
+    ui->treeWidgetFolder2->setColumnWidth(3, 100);
+    connect(ui->treeWidgetFolder2, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
+    connect(ui->treeWidgetFolder2->verticalScrollBar(), SIGNAL(valueChanged(int)), 
+            this, SLOT(onFolder2ScrollChanged(int)));
+    
+    ui->splitter->setStretchFactor(0, 1);
+    ui->splitter->setStretchFactor(1, 1);
+    
+    syncingScroll = false;
     
     updateButtonStates();
 }
@@ -123,10 +142,15 @@ void MainWindow::onCompare()
     scanFolder(folder1Path, folder1Files);
     scanFolder(folder2Path, folder2Files);
     
-    ui->treeWidget->clear();
+    ui->treeWidgetFolder1->clear();
+    ui->treeWidgetFolder2->clear();
+    
     compareFolders();
     
-    ui->statusBar->showMessage(QString("Comparison complete. Found %1 items.").arg(ui->treeWidget->topLevelItemCount()));
+    int folder1Count = ui->treeWidgetFolder1->topLevelItemCount();
+    int folder2Count = ui->treeWidgetFolder2->topLevelItemCount();
+    ui->statusBar->showMessage(QString("Comparison complete. Folder 1: %1 items | Folder 2: %2 items")
+                               .arg(folder1Count).arg(folder2Count));
 }
 
 void MainWindow::compareFolders()
@@ -180,52 +204,112 @@ void MainWindow::compareFolders()
         addTreeItem(status, relativePath, info1, info2);
     }
     
-    ui->treeWidget->expandAll();
+    ui->treeWidgetFolder1->expandAll();
+    ui->treeWidgetFolder2->expandAll();
 }
 
 void MainWindow::addTreeItem(const QString &status, const QString &relativePath, 
                              const FileInfo &info1, const FileInfo &info2)
 {
-    QTreeWidgetItem *item = new QTreeWidgetItem(ui->treeWidget);
-    item->setText(0, status);
-    item->setText(1, relativePath);
-    
-    if (info1.modifiedDate.isValid()) {
-        item->setText(2, info1.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
-    } else {
-        item->setText(2, "N/A");
-    }
-    
-    if (info2.modifiedDate.isValid()) {
-        item->setText(3, info2.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
-    } else {
-        item->setText(3, "N/A");
-    }
-    
-    if (info1.size > 0 || info2.size > 0) {
-        qint64 size = info1.size > info2.size ? info1.size : info2.size;
-        if (size < 1024) {
-            item->setText(4, QString::number(size) + " B");
-        } else if (size < 1024 * 1024) {
-            item->setText(4, QString::number(size / 1024.0, 'f', 2) + " KB");
-        } else {
-            item->setText(4, QString::number(size / (1024.0 * 1024.0), 'f', 2) + " MB");
-        }
-    } else {
-        item->setText(4, "-");
-    }
+    QColor color;
+    QString displayStatus1;
+    QString displayStatus2;
     
     if (status == "New in Folder 1" || status == "Folder 1 Newer") {
-        item->setForeground(0, QBrush(QColor(0, 150, 0)));
+        color = QColor(0, 150, 0);
     } else if (status == "New in Folder 2" || status == "Folder 2 Newer") {
-        item->setForeground(0, QBrush(QColor(150, 0, 0)));
+        color = QColor(150, 0, 0);
     } else if (status == "Same") {
-        item->setForeground(0, QBrush(QColor(100, 100, 100)));
+        color = QColor(100, 100, 100);
     } else {
-        item->setForeground(0, QBrush(QColor(200, 150, 0)));
+        color = QColor(200, 150, 0);
     }
     
-    item->setData(0, Qt::UserRole, relativePath);
+    // Map to git-like short status codes per side
+    if (status == "New in Folder 1") {
+        displayStatus1 = "A";   // added in Folder 1
+        displayStatus2 = "D";   // deleted from Folder 2
+    } else if (status == "New in Folder 2") {
+        displayStatus1 = "D";   // deleted from Folder 1
+        displayStatus2 = "A";   // added in Folder 2
+    } else if (status == "Folder 1 Newer") {
+        displayStatus1 = "M";   // modified (newer) in Folder 1
+        displayStatus2 = "Old"; // older version
+    } else if (status == "Folder 2 Newer") {
+        displayStatus1 = "Old"; // older version
+        displayStatus2 = "M";   // modified (newer) in Folder 2
+    } else if (status == "Size Different" || status == "Type Mismatch") {
+        displayStatus1 = "M";
+        displayStatus2 = "M";
+    } else if (status == "Same") {
+        displayStatus1 = "";
+        displayStatus2 = "";
+    } else {
+        displayStatus1 = status;
+        displayStatus2 = status;
+    }
+    
+    // Left list (Folder 1) – show even when only exists in Folder 2 (as deleted)
+    if (info1.modifiedDate.isValid() || status == "New in Folder 1" || status == "New in Folder 2") {
+        QTreeWidgetItem *item1 = new QTreeWidgetItem(ui->treeWidgetFolder1);
+        item1->setText(0, displayStatus1);
+        item1->setText(1, relativePath);
+        
+        if (info1.modifiedDate.isValid()) {
+            item1->setText(2, info1.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
+        } else {
+            item1->setText(2, "N/A");
+        }
+        
+        if (info1.size > 0) {
+            QString sizeStr;
+            if (info1.size < 1024) {
+                sizeStr = QString::number(info1.size) + " B";
+            } else if (info1.size < 1024 * 1024) {
+                sizeStr = QString::number(info1.size / 1024.0, 'f', 2) + " KB";
+            } else {
+                sizeStr = QString::number(info1.size / (1024.0 * 1024.0), 'f', 2) + " MB";
+            }
+            item1->setText(3, sizeStr);
+        } else {
+            item1->setText(3, "-");
+        }
+        
+        item1->setForeground(0, QBrush(color));
+        item1->setData(0, Qt::UserRole, relativePath);
+        item1->setData(1, Qt::UserRole, 1);
+    }
+    
+    // Right list (Folder 2) – show even when only exists in Folder 1 (as deleted)
+    if (info2.modifiedDate.isValid() || status == "New in Folder 1" || status == "New in Folder 2") {
+        QTreeWidgetItem *item2 = new QTreeWidgetItem(ui->treeWidgetFolder2);
+        item2->setText(0, displayStatus2);
+        item2->setText(1, relativePath);
+        
+        if (info2.modifiedDate.isValid()) {
+            item2->setText(2, info2.modifiedDate.toString("yyyy-MM-dd hh:mm:ss"));
+        } else {
+            item2->setText(2, "N/A");
+        }
+        
+        if (info2.size > 0) {
+            QString sizeStr;
+            if (info2.size < 1024) {
+                sizeStr = QString::number(info2.size) + " B";
+            } else if (info2.size < 1024 * 1024) {
+                sizeStr = QString::number(info2.size / 1024.0, 'f', 2) + " KB";
+            } else {
+                sizeStr = QString::number(info2.size / (1024.0 * 1024.0), 'f', 2) + " MB";
+            }
+            item2->setText(3, sizeStr);
+        } else {
+            item2->setText(3, "-");
+        }
+        
+        item2->setForeground(0, QBrush(color));
+        item2->setData(0, Qt::UserRole, relativePath);
+        item2->setData(1, Qt::UserRole, 2);
+    }
 }
 
 void MainWindow::onItemSelectionChanged()
@@ -235,11 +319,31 @@ void MainWindow::onItemSelectionChanged()
 
 void MainWindow::updateButtonStates()
 {
-    bool hasSelection = !ui->treeWidget->selectedItems().isEmpty();
-    ui->pushButtonCopyTo2->setEnabled(hasSelection);
-    ui->pushButtonCopyTo1->setEnabled(hasSelection);
-    ui->pushButtonMoveTo2->setEnabled(hasSelection);
-    ui->pushButtonMoveTo1->setEnabled(hasSelection);
+    bool hasSelection1 = !ui->treeWidgetFolder1->selectedItems().isEmpty();
+    bool hasSelection2 = !ui->treeWidgetFolder2->selectedItems().isEmpty();
+    
+    ui->pushButtonCopyTo2->setEnabled(hasSelection1);
+    ui->pushButtonCopyTo1->setEnabled(hasSelection2);
+    ui->pushButtonMoveTo2->setEnabled(hasSelection1);
+    ui->pushButtonMoveTo1->setEnabled(hasSelection2);
+}
+
+void MainWindow::onFolder1ScrollChanged(int value)
+{
+    if (!syncingScroll) {
+        syncingScroll = true;
+        ui->treeWidgetFolder2->verticalScrollBar()->setValue(value);
+        syncingScroll = false;
+    }
+}
+
+void MainWindow::onFolder2ScrollChanged(int value)
+{
+    if (!syncingScroll) {
+        syncingScroll = true;
+        ui->treeWidgetFolder1->verticalScrollBar()->setValue(value);
+        syncingScroll = false;
+    }
 }
 
 QString MainWindow::getFullPath(const QString &relativePath, int folderNumber)
@@ -326,7 +430,7 @@ bool MainWindow::moveFileOrFolder(const QString &source, const QString &destinat
 
 void MainWindow::onCopyToFolder2()
 {
-    QList<QTreeWidgetItem*> selected = ui->treeWidget->selectedItems();
+    QList<QTreeWidgetItem*> selected = ui->treeWidgetFolder1->selectedItems();
     if (selected.isEmpty()) {
         return;
     }
@@ -354,7 +458,7 @@ void MainWindow::onCopyToFolder2()
 
 void MainWindow::onCopyToFolder1()
 {
-    QList<QTreeWidgetItem*> selected = ui->treeWidget->selectedItems();
+    QList<QTreeWidgetItem*> selected = ui->treeWidgetFolder2->selectedItems();
     if (selected.isEmpty()) {
         return;
     }
@@ -382,7 +486,7 @@ void MainWindow::onCopyToFolder1()
 
 void MainWindow::onMoveToFolder2()
 {
-    QList<QTreeWidgetItem*> selected = ui->treeWidget->selectedItems();
+    QList<QTreeWidgetItem*> selected = ui->treeWidgetFolder1->selectedItems();
     if (selected.isEmpty()) {
         return;
     }
@@ -418,7 +522,7 @@ void MainWindow::onMoveToFolder2()
 
 void MainWindow::onMoveToFolder1()
 {
-    QList<QTreeWidgetItem*> selected = ui->treeWidget->selectedItems();
+    QList<QTreeWidgetItem*> selected = ui->treeWidgetFolder2->selectedItems();
     if (selected.isEmpty()) {
         return;
     }

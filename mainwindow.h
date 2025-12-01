@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QTreeWidgetItem>
+#include <QTreeWidget>
 #include <QFileInfo>
 #include <QMap>
 #include <QString>
@@ -36,6 +37,8 @@ private slots:
     void onCopyToFolder1();
     void onMoveToFolder2();
     void onMoveToFolder1();
+    void onFolder1ScrollChanged(int value);
+    void onFolder2ScrollChanged(int value);
 
 private:
     void scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath = "");
@@ -53,6 +56,7 @@ private:
     QMap<QString, FileInfo> folder2Files;
     QString folder1Path;
     QString folder2Path;
+    bool syncingScroll;
 };
 
 #endif // MAINWINDOW_H
