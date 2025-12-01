@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'mainwindow.ui'
 **
-** Created: Mon Dec 1 16:41:42 2025
+** Created: Mon Dec 1 18:20:55 2025
 **      by: Qt User Interface Compiler version 4.7.0
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
@@ -14,6 +14,7 @@
 #include <QtGui/QAction>
 #include <QtGui/QApplication>
 #include <QtGui/QButtonGroup>
+#include <QtGui/QComboBox>
 #include <QtGui/QHBoxLayout>
 #include <QtGui/QHeaderView>
 #include <QtGui/QLabel>
@@ -50,10 +51,18 @@ public:
     QWidget *widgetFolder1;
     QVBoxLayout *verticalLayout_2;
     QLabel *labelFolder1Title;
+    QHBoxLayout *horizontalLayout_Filter1;
+    QLabel *labelFilter1;
+    QLineEdit *lineEditFilter1;
+    QComboBox *comboBoxStatusFilter1;
     QTreeWidget *treeWidgetFolder1;
     QWidget *widgetFolder2;
     QVBoxLayout *verticalLayout_3;
     QLabel *labelFolder2Title;
+    QHBoxLayout *horizontalLayout_Filter2;
+    QLabel *labelFilter2;
+    QLineEdit *lineEditFilter2;
+    QComboBox *comboBoxStatusFilter2;
     QTreeWidget *treeWidgetFolder2;
     QHBoxLayout *horizontalLayout_3;
     QPushButton *pushButtonCopyTo2;
@@ -155,6 +164,28 @@ public:
 
         verticalLayout_2->addWidget(labelFolder1Title);
 
+        horizontalLayout_Filter1 = new QHBoxLayout();
+        horizontalLayout_Filter1->setSpacing(6);
+        horizontalLayout_Filter1->setObjectName(QString::fromUtf8("horizontalLayout_Filter1"));
+        labelFilter1 = new QLabel(widgetFolder1);
+        labelFilter1->setObjectName(QString::fromUtf8("labelFilter1"));
+
+        horizontalLayout_Filter1->addWidget(labelFilter1);
+
+        lineEditFilter1 = new QLineEdit(widgetFolder1);
+        lineEditFilter1->setObjectName(QString::fromUtf8("lineEditFilter1"));
+
+        horizontalLayout_Filter1->addWidget(lineEditFilter1);
+
+        comboBoxStatusFilter1 = new QComboBox(widgetFolder1);
+        comboBoxStatusFilter1->setObjectName(QString::fromUtf8("comboBoxStatusFilter1"));
+        comboBoxStatusFilter1->setMinimumSize(QSize(100, 0));
+
+        horizontalLayout_Filter1->addWidget(comboBoxStatusFilter1);
+
+
+        verticalLayout_2->addLayout(horizontalLayout_Filter1);
+
         treeWidgetFolder1 = new QTreeWidget(widgetFolder1);
         treeWidgetFolder1->setObjectName(QString::fromUtf8("treeWidgetFolder1"));
 
@@ -173,6 +204,28 @@ public:
         labelFolder2Title->setFont(font);
 
         verticalLayout_3->addWidget(labelFolder2Title);
+
+        horizontalLayout_Filter2 = new QHBoxLayout();
+        horizontalLayout_Filter2->setSpacing(6);
+        horizontalLayout_Filter2->setObjectName(QString::fromUtf8("horizontalLayout_Filter2"));
+        labelFilter2 = new QLabel(widgetFolder2);
+        labelFilter2->setObjectName(QString::fromUtf8("labelFilter2"));
+
+        horizontalLayout_Filter2->addWidget(labelFilter2);
+
+        lineEditFilter2 = new QLineEdit(widgetFolder2);
+        lineEditFilter2->setObjectName(QString::fromUtf8("lineEditFilter2"));
+
+        horizontalLayout_Filter2->addWidget(lineEditFilter2);
+
+        comboBoxStatusFilter2 = new QComboBox(widgetFolder2);
+        comboBoxStatusFilter2->setObjectName(QString::fromUtf8("comboBoxStatusFilter2"));
+        comboBoxStatusFilter2->setMinimumSize(QSize(100, 0));
+
+        horizontalLayout_Filter2->addWidget(comboBoxStatusFilter2);
+
+
+        verticalLayout_3->addLayout(horizontalLayout_Filter2);
 
         treeWidgetFolder2 = new QTreeWidget(widgetFolder2);
         treeWidgetFolder2->setObjectName(QString::fromUtf8("treeWidgetFolder2"));
@@ -236,7 +289,11 @@ public:
         pushButtonBrowse2->setText(QApplication::translate("MainWindow", "Browse...", 0, QApplication::UnicodeUTF8));
         pushButtonCompare->setText(QApplication::translate("MainWindow", "Compare Folders", 0, QApplication::UnicodeUTF8));
         labelFolder1Title->setText(QApplication::translate("MainWindow", "Folder 1 Contents", 0, QApplication::UnicodeUTF8));
+        labelFilter1->setText(QApplication::translate("MainWindow", "Filter:", 0, QApplication::UnicodeUTF8));
+        lineEditFilter1->setPlaceholderText(QApplication::translate("MainWindow", "Filter by name...", 0, QApplication::UnicodeUTF8));
         labelFolder2Title->setText(QApplication::translate("MainWindow", "Folder 2 Contents", 0, QApplication::UnicodeUTF8));
+        labelFilter2->setText(QApplication::translate("MainWindow", "Filter:", 0, QApplication::UnicodeUTF8));
+        lineEditFilter2->setPlaceholderText(QApplication::translate("MainWindow", "Filter by name...", 0, QApplication::UnicodeUTF8));
         pushButtonCopyTo2->setText(QApplication::translate("MainWindow", "Copy Selected to Folder 2", 0, QApplication::UnicodeUTF8));
         pushButtonCopyTo1->setText(QApplication::translate("MainWindow", "Copy Selected to Folder 1", 0, QApplication::UnicodeUTF8));
         pushButtonMoveTo2->setText(QApplication::translate("MainWindow", "Move Selected to Folder 2", 0, QApplication::UnicodeUTF8));

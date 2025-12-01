@@ -44,6 +44,10 @@ private slots:
     void onFolder2SelectionChanged();
     void onFolder1FocusChanged();
     void onFolder2FocusChanged();
+    void onFilter1Changed();
+    void onFilter2Changed();
+    void onStatusFilter1Changed();
+    void onStatusFilter2Changed();
 
 private:
     void scanFolder(const QString &folderPath, QMap<QString, FileInfo> &fileMap, const QString &basePath = "", int *fileCount = 0);
@@ -70,6 +74,8 @@ private:
     bool syncingSelection;
     QTreeWidget* activeTreeWidget;
     void syncSelection(QTreeWidget* source, QTreeWidget* target);
+    void applyFilter(QTreeWidget* treeWidget, const QString& textFilter, const QString& statusFilter);
+    void setupFilterComboBoxes();
 };
 
 #endif // MAINWINDOW_H

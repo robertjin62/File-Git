@@ -12,6 +12,7 @@
 #include <QApplication>
 #include <QScrollBar>
 #include <QEvent>
+#include <QComboBox>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -73,6 +74,13 @@ MainWindow::MainWindow(QWidget *parent) :
     syncingScroll = false;
     syncingSelection = false;
     activeTreeWidget = ui->treeWidgetFolder1;
+    
+    setupFilterComboBoxes();
+    
+    connect(ui->lineEditFilter1, SIGNAL(textChanged(QString)), this, SLOT(onFilter1Changed()));
+    connect(ui->lineEditFilter2, SIGNAL(textChanged(QString)), this, SLOT(onFilter2Changed()));
+    connect(ui->comboBoxStatusFilter1, SIGNAL(currentIndexChanged(int)), this, SLOT(onStatusFilter1Changed()));
+    connect(ui->comboBoxStatusFilter2, SIGNAL(currentIndexChanged(int)), this, SLOT(onStatusFilter2Changed()));
     
     applyStyles();
     
@@ -242,6 +250,44 @@ void MainWindow::applyStyles()
         "QMenuBar {"
         "    background-color: #f8f9fa;"
         "    border-bottom: 1px solid #dee2e6;"
+        "}"
+        
+        "QComboBox {"
+        "    border: 1px solid #ced4da;"
+        "    border-radius: 3px;"
+        "    padding: 4px 8px;"
+        "    background-color: #ffffff;"
+        "    font-size: 11px;"
+        "    min-width: 100px;"
+        "}"
+        
+        "QComboBox:hover {"
+        "    border: 1px solid #adb5bd;"
+        "}"
+        
+        "QComboBox:focus {"
+        "    border: 1px solid #80bdff;"
+        "}"
+        
+        "QComboBox::drop-down {"
+        "    border: none;"
+        "    width: 20px;"
+        "}"
+        
+        "QComboBox::down-arrow {"
+        "    image: none;"
+        "    border-left: 4px solid transparent;"
+        "    border-right: 4px solid transparent;"
+        "    border-top: 6px solid #6c757d;"
+        "    width: 0;"
+        "    height: 0;"
+        "}"
+        
+        "QComboBox QAbstractItemView {"
+        "    border: 1px solid #ced4da;"
+        "    selection-background-color: #cce5ff;"
+        "    selection-color: #004085;"
+        "    background-color: #ffffff;"
         "}"
         
         "QWidget#centralWidget {"
@@ -512,6 +558,9 @@ void MainWindow::compareFolders()
     
     ui->treeWidgetFolder1->expandAll();
     ui->treeWidgetFolder2->expandAll();
+    
+    onFilter1Changed();
+    onFilter2Changed();
 }
 
 void MainWindow::addTreeItem(const QString &status, const QString &relativePath, 
@@ -687,6 +736,95 @@ void MainWindow::onFolder2FocusChanged()
 {
     activeTreeWidget = ui->treeWidgetFolder2;
     updateButtonStates();
+}
+
+void MainWindow::setupFilterComboBoxes()
+{
+    QStringList statusFilters;
+    statusFilters << "All" << "A (Added)" << "D (Deleted)" << "M (Modified)" << "Old" << "Same";
+    
+    ui->comboBoxStatusFilter1->addItems(statusFilters);
+    ui->comboBoxStatusFilter2->addItems(statusFilters);
+    
+    ui->comboBoxStatusFilter1->setCurrentIndex(0);
+    ui->comboBoxStatusFilter2->setCurrentIndex(0);
+}
+
+void MainWindow::applyFilter(QTreeWidget* treeWidget, const QString& textFilter, const QString& statusFilter)
+{
+    QTreeWidgetItemIterator it(treeWidget);
+    int visibleCount = 0;
+    
+    while (*it) {
+        QTreeWidgetItem* item = *it;
+        bool visible = true;
+        
+        QString itemText = item->text(1);
+        QString itemStatus = item->text(0);
+        
+        if (!textFilter.isEmpty()) {
+            if (!itemText.contains(textFilter, Qt::CaseInsensitive)) {
+                visible = false;
+            }
+        }
+        
+        if (statusFilter != "All" && visible) {
+            if (statusFilter == "A (Added)" && itemStatus != "A") {
+                visible = false;
+            } else if (statusFilter == "D (Deleted)" && itemStatus != "D") {
+                visible = false;
+            } else if (statusFilter == "M (Modified)" && itemStatus != "M") {
+                visible = false;
+            } else if (statusFilter == "Old" && itemStatus != "Old") {
+                visible = false;
+            } else if (statusFilter == "Same") {
+                if (!itemStatus.isEmpty()) {
+                    visible = false;
+                }
+            }
+        }
+        
+        item->setHidden(!visible);
+        if (visible) {
+            visibleCount++;
+        }
+        
+        ++it;
+    }
+    
+    if (treeWidget == ui->treeWidgetFolder1) {
+        ui->statusBar->showMessage(QString("Folder 1: %1 visible items").arg(visibleCount));
+    } else {
+        ui->statusBar->showMessage(QString("Folder 2: %1 visible items").arg(visibleCount));
+    }
+}
+
+void MainWindow::onFilter1Changed()
+{
+    QString textFilter = ui->lineEditFilter1->text();
+    QString statusFilter = ui->comboBoxStatusFilter1->currentText();
+    applyFilter(ui->treeWidgetFolder1, textFilter, statusFilter);
+}
+
+void MainWindow::onFilter2Changed()
+{
+    QString textFilter = ui->lineEditFilter2->text();
+    QString statusFilter = ui->comboBoxStatusFilter2->currentText();
+    applyFilter(ui->treeWidgetFolder2, textFilter, statusFilter);
+}
+
+void MainWindow::onStatusFilter1Changed()
+{
+    QString textFilter = ui->lineEditFilter1->text();
+    QString statusFilter = ui->comboBoxStatusFilter1->currentText();
+    applyFilter(ui->treeWidgetFolder1, textFilter, statusFilter);
+}
+
+void MainWindow::onStatusFilter2Changed()
+{
+    QString textFilter = ui->lineEditFilter2->text();
+    QString statusFilter = ui->comboBoxStatusFilter2->currentText();
+    applyFilter(ui->treeWidgetFolder2, textFilter, statusFilter);
 }
 
 void MainWindow::onFolder1ScrollChanged(int value)
