@@ -54,6 +54,7 @@ private:
     bool moveFileOrFolderWithProgress(const QString &source, const QString &destination, int *processed, int *total);
     QString getFullPath(const QString &relativePath, int folderNumber);
     void updateButtonStates();
+    void applyStyles();
 
     Ui::MainWindow *ui;
     QMap<QString, FileInfo> folder1Files;

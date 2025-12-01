@@ -34,6 +34,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->treeWidgetFolder1->setColumnWidth(1, 400);
     ui->treeWidgetFolder1->setColumnWidth(2, 150);
     ui->treeWidgetFolder1->setColumnWidth(3, 100);
+    ui->treeWidgetFolder1->setAlternatingRowColors(true);
+    ui->treeWidgetFolder1->setRootIsDecorated(true);
     connect(ui->treeWidgetFolder1, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
     connect(ui->treeWidgetFolder1->verticalScrollBar(), SIGNAL(valueChanged(int)), 
             this, SLOT(onFolder1ScrollChanged(int)));
@@ -46,6 +48,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->treeWidgetFolder2->setColumnWidth(1, 400);
     ui->treeWidgetFolder2->setColumnWidth(2, 150);
     ui->treeWidgetFolder2->setColumnWidth(3, 100);
+    ui->treeWidgetFolder2->setAlternatingRowColors(true);
+    ui->treeWidgetFolder2->setRootIsDecorated(true);
     connect(ui->treeWidgetFolder2, SIGNAL(itemSelectionChanged()), this, SLOT(onItemSelectionChanged()));
     connect(ui->treeWidgetFolder2->verticalScrollBar(), SIGNAL(valueChanged(int)), 
             this, SLOT(onFolder2ScrollChanged(int)));
@@ -55,7 +59,181 @@ MainWindow::MainWindow(QWidget *parent) :
     
     syncingScroll = false;
     
+    applyStyles();
+    
     updateButtonStates();
+}
+
+void MainWindow::applyStyles()
+{
+    QString styleSheet = 
+        "QMainWindow {"
+        "    background-color: #ffffff;"
+        "}"
+        
+        "QPushButton {"
+        "    background-color: #6c757d;"
+        "    color: white;"
+        "    border: 1px solid #5a6268;"
+        "    border-radius: 3px;"
+        "    padding: 6px 14px;"
+        "    font-size: 11px;"
+        "    min-height: 26px;"
+        "}"
+        
+        "QPushButton:hover {"
+        "    background-color: #5a6268;"
+        "    border: 1px solid #4e555b;"
+        "}"
+        
+        "QPushButton:pressed {"
+        "    background-color: #545b62;"
+        "}"
+        
+        "QPushButton:disabled {"
+        "    background-color: #e9ecef;"
+        "    color: #adb5bd;"
+        "    border: 1px solid #dee2e6;"
+        "}"
+        
+        "QPushButton#pushButtonCompare {"
+        "    background-color: #28a745;"
+        "    border: 1px solid #218838;"
+        "    font-size: 12px;"
+        "    padding: 8px 18px;"
+        "    font-weight: 500;"
+        "}"
+        
+        "QPushButton#pushButtonCompare:hover {"
+        "    background-color: #218838;"
+        "    border: 1px solid #1e7e34;"
+        "}"
+        
+        "QPushButton#pushButtonCompare:pressed {"
+        "    background-color: #1e7e34;"
+        "}"
+        
+        "QLineEdit {"
+        "    border: 1px solid #ced4da;"
+        "    border-radius: 3px;"
+        "    padding: 5px 8px;"
+        "    background-color: #ffffff;"
+        "    font-size: 11px;"
+        "    selection-background-color: #80bdff;"
+        "    selection-color: #000000;"
+        "}"
+        
+        "QLineEdit:focus {"
+        "    border: 1px solid #80bdff;"
+        "    background-color: #ffffff;"
+        "}"
+        
+        "QLabel {"
+        "    color: #212529;"
+        "    font-size: 11px;"
+        "}"
+        
+        "QLabel#labelFolder1Title, QLabel#labelFolder2Title {"
+        "    background-color: #e9ecef;"
+        "    color: #212529;"
+        "    padding: 6px 10px;"
+        "    border: 1px solid #dee2e6;"
+        "    border-bottom: 2px solid #6c757d;"
+        "    font-size: 11px;"
+        "    font-weight: 600;"
+        "}"
+        
+        "QTreeWidget {"
+        "    background-color: #ffffff;"
+        "    border: 1px solid #dee2e6;"
+        "    alternate-background-color: #f8f9fa;"
+        "    selection-background-color: #cce5ff;"
+        "    selection-color: #004085;"
+        "    font-size: 11px;"
+        "    color: #212529;"
+        "}"
+        
+        "QTreeWidget::item {"
+        "    padding: 3px;"
+        "    border: none;"
+        "    min-height: 20px;"
+        "}"
+        
+        "QTreeWidget::item:hover {"
+        "    background-color: #e9ecef;"
+        "}"
+        
+        "QTreeWidget::item:selected {"
+        "    background-color: #cce5ff;"
+        "    color: #004085;"
+        "}"
+        
+        "QTreeWidget::item:selected:active {"
+        "    background-color: #b3d9ff;"
+        "}"
+        
+        "QTreeWidget::header {"
+        "    background-color: #f8f9fa;"
+        "    border: none;"
+        "    border-bottom: 2px solid #dee2e6;"
+        "    padding: 5px;"
+        "    font-weight: 600;"
+        "    font-size: 11px;"
+        "    color: #495057;"
+        "}"
+        
+        "QTreeWidget::header::section {"
+        "    background-color: #f8f9fa;"
+        "    border: none;"
+        "    border-right: 1px solid #dee2e6;"
+        "    padding: 4px 8px;"
+        "}"
+        
+        "QTreeWidget::header::section:first {"
+        "    border-left: none;"
+        "}"
+        
+        "QProgressBar {"
+        "    border: 1px solid #ced4da;"
+        "    border-radius: 3px;"
+        "    text-align: center;"
+        "    font-size: 10px;"
+        "    color: #212529;"
+        "    background-color: #e9ecef;"
+        "    height: 22px;"
+        "}"
+        
+        "QProgressBar::chunk {"
+        "    background-color: #17a2b8;"
+        "    border-radius: 2px;"
+        "}"
+        
+        "QSplitter::handle {"
+        "    background-color: #dee2e6;"
+        "    width: 4px;"
+        "}"
+        
+        "QSplitter::handle:hover {"
+        "    background-color: #adb5bd;"
+        "}"
+        
+        "QStatusBar {"
+        "    background-color: #f8f9fa;"
+        "    border-top: 1px solid #dee2e6;"
+        "    color: #6c757d;"
+        "    font-size: 10px;"
+        "}"
+        
+        "QMenuBar {"
+        "    background-color: #f8f9fa;"
+        "    border-bottom: 1px solid #dee2e6;"
+        "}"
+        
+        "QWidget#centralWidget {"
+        "    background-color: #ffffff;"
+        "}";
+    
+    this->setStyleSheet(styleSheet);
 }
 
 MainWindow::~MainWindow()
